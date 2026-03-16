@@ -3,7 +3,7 @@ import { AuthService } from "./auth.service";
 import { registerDto } from "./dto/register.dto";
 import type { Request } from "express";
 import { verifyOtpDto } from "./dto/verifyotp.dto";
-import { loginDto } from "./dto/loginDto";
+import { LoginDto } from "./dto/loginDto";
 
 @Controller('auth')
 export class AuthController {
@@ -19,7 +19,7 @@ export class AuthController {
 
     @Post('send-otp')
     async sendOtp(@Body() body: any){
-        return this.authService.sendRegisterOtp(body)
+        return this.authService.sendRegisterOtp(body.email)
     }
 
     @Post('veriy-email')
@@ -39,9 +39,9 @@ export class AuthController {
     }
     @Post('login')
     async login (
-        @Body() body:loginDto,
+        @Body() body:LoginDto,
         @Req() req:Request
-    ){  
+    ){  console.log("requestFrom postman" , body)
         const ip = req.ip
         const userAgent = req.headers['user-agent']
         return this.authService.loginuser(body , ip ,userAgent)

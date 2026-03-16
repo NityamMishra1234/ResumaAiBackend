@@ -32,7 +32,7 @@ export class otpServices {
     }
 
     async canRequestOtp(email : string):Promise<boolean>{
-        const exist = await this.cache.get('otp:verifyEmail:${email}')
+        const exist = await this.cache.get(`otp:verifyEmail:${email}`)
 
         if(exist) return false;
 

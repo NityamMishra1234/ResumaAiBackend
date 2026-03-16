@@ -6,6 +6,7 @@ import databaseConfig from './confing/database.config';
 import { CacheModule } from '@nestjs/cache-manager';
 import { databaseModule } from './dataBase/database.module';
 import { AuthModule } from './module/auth/auth.module';
+import { ProfileModule } from './module/profile/profile.module';
 
 @Module({
   imports: [
@@ -21,7 +22,8 @@ import { AuthModule } from './module/auth/auth.module';
     }),
 
     databaseModule,
-    AuthModule
+    AuthModule,
+    ProfileModule
   ],
   controllers: [AppController],
   providers: [AppService],

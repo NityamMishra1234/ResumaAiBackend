@@ -9,7 +9,7 @@ import { User } from "../user/entities/user.entity";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt"
 
-import { loginDto } from "./dto/loginDto";
+import { LoginDto } from "./dto/loginDto";
 import { EmailService } from "src/common/services/email.service";
 import { verifyOtpDto } from "./dto/verifyotp.dto";
 import { changePasswrodDto } from "./dto/changePassword.dto";
@@ -65,6 +65,7 @@ export class AuthService {
         const user = this.userRepo.create({
             email: dto.email,
             password: hashed,
+            name : dto.name,
         })
 
         const savedUser = await this.userRepo.save(user)
@@ -90,12 +91,14 @@ export class AuthService {
         }
     }
 
-    async loginuser(dto: loginDto, ip: any, userAgent: any) {
+    async loginuser(dto: LoginDto, ip: any, userAgent: any) {
         const findUser = await this.userRepo.findOne({
             where: { email: dto.email }
         })
 
         if (!findUser) throw new BadRequestException("User dont exists! please register")
+            console.log("This is the findUser" , findUser)
+            console.log("This is the password form the postamn " , dto.password)
 
         const passwordVerify = await bcrypt.compare(dto.password, findUser.password)
 
@@ -148,8 +151,6 @@ export class AuthService {
         return {
             message: "Otp vrified please change you password"
         }
-
-
 
     }
 
