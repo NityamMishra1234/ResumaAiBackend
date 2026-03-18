@@ -7,6 +7,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { databaseModule } from './dataBase/database.module';
 import { AuthModule } from './module/auth/auth.module';
 import { ProfileModule } from './module/profile/profile.module';
+import { ResumeModule } from './module/ResumeModule/resume.module';
 
 @Module({
   imports: [
@@ -23,7 +24,8 @@ import { ProfileModule } from './module/profile/profile.module';
 
     databaseModule,
     AuthModule,
-    ProfileModule
+    ProfileModule,
+    ResumeModule
   ],
   controllers: [AppController],
   providers: [AppService],

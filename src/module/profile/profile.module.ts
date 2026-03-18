@@ -14,5 +14,6 @@ import { User } from "../user/entities/user.entity";
     imports:[TypeOrmModule.forFeature([Profile , Experience , Education, Project , Certification ,Skill, User ])],
     providers:[ProfileService],
     controllers:[ProfileController],
+    exports: [ProfileService]
 })
 export class ProfileModule {}

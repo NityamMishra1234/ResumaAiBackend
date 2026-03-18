@@ -81,31 +81,41 @@ export class ProfileService {
     }
   }
 
-  async updateProfile(profileId: string, data) {
+  async updateProfile(profileId: string, data: any) {
+  try {
 
-    try {
+    const profile = await this.profileRepo.findOne({
+      where: { id: profileId },
+      relations: [
+        "experiences",
+        "education",
+        "projects",
+        "certifications",
+        "skills"
+      ]
+    });
 
-      const profile = await this.profileRepo.findOne({
-        where: { id: profileId }
-      });
-
-      if (!profile) {
-        throw new NotFoundException("Profile not found");
-      }
-
-      await this.profileRepo.update(profileId, data);
-
-      return this.getProfileById(profileId);
-
-    } catch (error) {
-
-      this.logger.error("Error updating profile", error.stack);
-
-      if (error instanceof NotFoundException) throw error;
-
-      throw new InternalServerErrorException("Failed to update profile");
+    if (!profile) {
+      throw new NotFoundException("Profile not found");
     }
+
+    // 🧠 merge incoming data into existing entity
+    Object.assign(profile, data);
+
+    // ✅ THIS is the magic
+    const updatedProfile = await this.profileRepo.save(profile);
+
+    return this.getProfileById(profileId);
+
+  } catch (error) {
+
+    this.logger.error("Error updating profile", error.stack);
+
+    if (error instanceof NotFoundException) throw error;
+
+    throw new InternalServerErrorException("Failed to update profile");
   }
+}
 
   async getProfileById(profileId: string) {
 
