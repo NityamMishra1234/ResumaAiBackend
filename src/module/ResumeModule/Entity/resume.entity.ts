@@ -39,8 +39,8 @@ export class Resume {
   @Column({ default: false })
   isDeleted: boolean;
 
- @UpdateDateColumn()
- deletedAt : Date;
+  @UpdateDateColumn()
+  deletedAt: Date;
 
   @CreateDateColumn()
   createdAt: Date;

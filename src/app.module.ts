@@ -8,26 +8,28 @@ import { databaseModule } from './dataBase/database.module';
 import { AuthModule } from './module/auth/auth.module';
 import { ProfileModule } from './module/profile/profile.module';
 import { ResumeModule } from './module/ResumeModule/resume.module';
+import { CompanyAuthModule } from './module/company/companies/company-auth.module/company-auth.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal:true,
-      load:[databaseConfig]
+      isGlobal: true,
+      load: [databaseConfig]
     }),
 
     CacheModule.register({
-      isGlobal : true,
-      ttl : 600,
+      isGlobal: true,
+      ttl: 600,
       max: 1000
     }),
 
     databaseModule,
     AuthModule,
     ProfileModule,
-    ResumeModule
+    ResumeModule,
+    CompanyAuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

@@ -50,6 +50,7 @@ export class AuthService {
     }
 
     async registerNewUser(dto: registerDto, ip: any, userAgent: any) {
+        console.log("DTO:", dto);
         const validateIsVerified = await this.otpService.isVerified(dto.email)
 
         if (!validateIsVerified) throw new BadRequestException("You are not verified yet or you took more then 10 mins to register please try again")
@@ -65,7 +66,7 @@ export class AuthService {
         const user = this.userRepo.create({
             email: dto.email,
             password: hashed,
-            name : dto.name,
+            name: dto.name,
         })
 
         const savedUser = await this.userRepo.save(user)
@@ -97,8 +98,8 @@ export class AuthService {
         })
 
         if (!findUser) throw new BadRequestException("User dont exists! please register")
-            console.log("This is the findUser" , findUser)
-            console.log("This is the password form the postamn " , dto.password)
+        console.log("This is the findUser", findUser)
+        console.log("This is the password form the postamn ", dto.password)
 
         const passwordVerify = await bcrypt.compare(dto.password, findUser.password)
 

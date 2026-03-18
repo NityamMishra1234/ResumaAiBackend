@@ -19,7 +19,7 @@ export class ProfileController {
 
   constructor(
     private readonly profileService: ProfileService
-  ) {}
+  ) { }
 
   @UseGuards(jwtAtuhGuard)
   @Post()
