@@ -9,9 +9,9 @@ import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
 import { JwtService } from "@nestjs/jwt";
 
-import { Company } from "../entity/company.entity";
-import { CompanySignupDto } from "../../auth/dto/company-signup.dto";
-import { CompanyLoginDto } from "../../auth/dto/company-login.dto";
+import { Company } from "../../companies/entity/company.entity";
+import { CompanySignupDto } from "../dto/company-signup.dto";
+import { CompanyLoginDto } from "../dto/company-login.dto";
 import { otpServices } from "src/common/services/otp.service";
 import { EmailService } from "src/common/services/email.service";
 import { Session } from "src/module/sessions/entity/sessions.entity";

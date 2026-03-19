@@ -5,6 +5,8 @@ import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
 export class CompanyGuard implements CanActivate {
     canActivate(context: ExecutionContext): boolean {
         const req = context.switchToHttp().getRequest();
-        return req.user?.role === "company";
+        console.log("in company guard ", req.user?.role)
+        console.log("in company user", req.user)
+        return req.user?.role === "COMPANY";
     }
-}
+}   

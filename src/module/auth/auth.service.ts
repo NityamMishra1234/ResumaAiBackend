@@ -98,8 +98,7 @@ export class AuthService {
         })
 
         if (!findUser) throw new BadRequestException("User dont exists! please register")
-        console.log("This is the findUser", findUser)
-        console.log("This is the password form the postamn ", dto.password)
+     
 
         const passwordVerify = await bcrypt.compare(dto.password, findUser.password)
 

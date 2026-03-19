@@ -3,16 +3,18 @@ import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { JwtModule } from "@nestjs/jwt";
 
-import { Company } from "../entity/company.entity";
+
 import { CompanyAuthService } from "../company.auth.services.ts/company-auth.service";
 import { CompanyAuthController } from "../company-auth.controller/company-auth.controller";
 import { serviceModule } from "src/common/services/services.module";
 import { ConfigService } from "@nestjs/config";
 import { Session } from "src/module/sessions/entity/sessions.entity";
+import { CompanyModule } from "../../companies/module/company.module";
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Company, Session]),
+        CompanyModule,
+        TypeOrmModule.forFeature([ Session]),
         JwtModule.registerAsync({
             inject: [ConfigService],
             useFactory: (config: ConfigService) => ({
