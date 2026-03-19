@@ -12,6 +12,7 @@ import { Application } from "../../application/entity/application.entity";
 import { Interview } from "../entity/interview.entity";
 import { InterviewGeminiService } from "../geminiService/interview-gemini.service";
 import { InterviewStatus } from "src/common/enems/interview-status.enum";
+import { ApplicationStatus } from "src/common/enems/application-status.enum";
 
 @Injectable()
 export class InterviewService {
@@ -115,7 +116,77 @@ export class InterviewService {
         };
     }
 
-    // 🔥 GENERATE QUESTIONS (HIGH QUALITY PROMPT)
+    async updateApplicationStatus(
+        applicationId: string,
+        status: ApplicationStatus
+    ) {
+        const application = await this.applicationRepo.findOne({
+            where: { id: applicationId },
+        });
+
+        if (!application) {
+            throw new NotFoundException("Application not found");
+        }
+
+        application.status = status;
+
+        await this.applicationRepo.save(application);
+
+        return {
+            message: "Status updated successfully",
+            status,
+        };
+    }
+
+    async getApplicationDetails(applicationId: string) {
+        const application = await this.applicationRepo.findOne({
+            where: { id: applicationId },
+            relations: [
+                "user",
+                "job",
+                "interview"
+            ],
+        });
+
+        if (!application) {
+            throw new NotFoundException("Application not found");
+        }
+
+        const interview = application.interview;
+
+        return {
+            application: {
+                id: application.id,
+                status: application.status,
+                score: application.score,
+                resumeUrl: application.resumeUrl,
+                portfolioUrl: application.portfolioUrl,
+                appliedAt: application.appliedAt,
+            },
+
+            user: application.user && {
+                id: application.user.id,
+                name: application.user.name,
+                email: application.user.email,
+            },
+
+            job: application.job && {
+                id: application.job.id,
+                title: application.job.title,
+                skills: application.job.skills,
+            },
+
+            interview: interview && {
+                score: interview.score,
+                feedback: interview.feedback,
+                difficulty: interview.difficulty,
+                conversation: interview.conversation,
+                createdAt: interview.createdAt,
+            }
+        };
+    }
+
+    //  GENERATE QUESTIONS (HIGH QUALITY PROMPT)
     private async generateQuestions(job: Job) {
         const prompt = `
 You are a FAANG-level senior interviewer.

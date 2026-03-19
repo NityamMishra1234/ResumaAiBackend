@@ -4,4 +4,4 @@ export enum ApplicationStatus {
     COMPLETED = "completed",
     SHORTLISTED = "shortlisted",
     REJECTED = "rejected"
-}
+}       

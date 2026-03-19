@@ -32,6 +32,13 @@ export class CompanyAuthController {
         return this.authService.signup(dto, ip, userAgent);
     }
 
+
+    @Post('refreshtoken')
+    async refresh(@Body() body: any) {
+        const { refreshToken } = body;
+        return this.authService.refreshToken(refreshToken)
+    }
+
     @Post("login")
     login(@Body() dto: CompanyLoginDto, @Req() req: Request) {
 

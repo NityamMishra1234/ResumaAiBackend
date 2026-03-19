@@ -36,7 +36,7 @@ export class JobService {
         const { password: _, ...savedUser } = savedJobs.company
 
         return savedJobs;
-    }   
+    }
 
     //  GET ALL JOBS (PUBLIC)
     async getAllJobs(filters: any) {
@@ -72,7 +72,9 @@ export class JobService {
     async getCompanyJobs(companyId: string) {
         return this.jobRepo.find({
             where: { company: { id: companyId } },
-            relations: ["applications"],
+            relations: ["applications",
+                "applications.user",
+            ],
             order: { createdAt: "DESC" },
         });
     }
@@ -96,6 +98,7 @@ export class JobService {
         return this.jobRepo.save(job);
     }
 
+    
     //  DELETE JOB (SOFT DELETE)
     async deleteJob(jobId: string, companyId: string) {
         const job = await this.jobRepo.findOne({

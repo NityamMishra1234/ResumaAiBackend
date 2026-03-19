@@ -5,10 +5,14 @@ import {
     Body,
     Req,
     UseGuards,
+    Patch,
+    Get,
 } from "@nestjs/common";
 
 import { InterviewService } from "../services/interview.service";
 import { jwtAtuhGuard } from "src/module/auth/guards/auth.guard";
+import { CompanyGuard } from "../../auth/guard/company.guard";
+import { ApplicationStatus } from "src/common/enems/application-status.enum";
 
 @Controller("interview")
 export class InterviewController {
@@ -21,7 +25,16 @@ export class InterviewController {
         return this.service.startInterview(req.user.userId, jobId);
     }
 
-    // 🚀 COMPLETE INTERVIEW (SUBMIT ALL ANSWERS)
+    @UseGuards(jwtAtuhGuard, CompanyGuard)
+    @Patch("application/:id/status")
+    updateStatus(
+        @Param("id") id: string,
+        @Body("status") status: ApplicationStatus
+    ) {
+        return this.service.updateApplicationStatus(id, status);
+    }
+
+    //  COMPLETE INTERVIEW (SUBMIT ALL ANSWERS)
     @UseGuards(jwtAtuhGuard)
     @Post("complete")
     complete(
@@ -39,5 +52,11 @@ export class InterviewController {
             userId: req.user.userId,
             ...body,
         });
+    }
+
+    // get the interview detials of the application , @Get("application/:id")
+    @Get("application/:id")
+    getApplicationDetails(@Param("id") id: string) {
+        return this.service.getApplicationDetails(id);
     }
 }

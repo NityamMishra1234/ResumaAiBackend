@@ -10,7 +10,7 @@ import {
 
 import { User } from "src/module/user/entities/user.entity";
 import { Job } from "../../jobs/jobEntity/job.entity";
-
+import { Interview } from "../../interview/entity/interview.entity";
 import { ApplicationStatus } from "src/common/enems/application-status.enum";
 
 @Entity("applications")
@@ -25,6 +25,9 @@ export class Application {
 
     @ManyToOne(() => Job, job => job.applications, { onDelete: "CASCADE" })
     job: Job;
+
+    @OneToOne(() => Interview, interview => interview.application)
+    interview: Interview;
 
     @Column()
     resumeUrl: string;
@@ -42,8 +45,7 @@ export class Application {
     @Column({ nullable: true })
     score: number;
 
-    @Column()
-    interviewSessionId: string;
+
 
     @CreateDateColumn()
     appliedAt: Date;
