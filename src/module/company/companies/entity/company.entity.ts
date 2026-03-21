@@ -3,8 +3,10 @@ import {
     Entity,
     PrimaryGeneratedColumn,
     Column,
-    CreateDateColumn
+    CreateDateColumn,
+    OneToMany
 } from "typeorm";
+import { Job } from "../../jobs/jobEntity/job.entity";
 
 @Entity("companies")
 export class Company {
@@ -32,6 +34,9 @@ export class Company {
 
     @Column({ nullable: true })
     logo: string;
+
+    @OneToMany(() => Job, job => job.company)
+    jobs: Job[];
 
     @CreateDateColumn()
     createdAt: Date;

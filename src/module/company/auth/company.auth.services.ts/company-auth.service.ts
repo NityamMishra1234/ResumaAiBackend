@@ -2,19 +2,21 @@
 import {
     Injectable,
     ConflictException,
-    UnauthorizedException
+    UnauthorizedException,
+    BadRequestException
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
 import { JwtService } from "@nestjs/jwt";
 
-import { Company } from "../entity/company.entity";
-import { CompanySignupDto } from "../../auth/dto/company-signup.dto";
-import { CompanyLoginDto } from "../../auth/dto/company-login.dto";
+import { Company } from "../../companies/entity/company.entity";
+import { CompanySignupDto } from "../dto/company-signup.dto";
+import { CompanyLoginDto } from "../dto/company-login.dto";
 import { otpServices } from "src/common/services/otp.service";
 import { EmailService } from "src/common/services/email.service";
 import { Session } from "src/module/sessions/entity/sessions.entity";
+import { ConfigService } from "@nestjs/config";
 
 @Injectable()
 export class CompanyAuthService {
@@ -27,7 +29,8 @@ export class CompanyAuthService {
         private sessionsRepo: Repository<Session>,
         private jwtService: JwtService,
         private otpService: otpServices,
-        private emailService: EmailService
+        private emailService: EmailService,
+        private config: ConfigService
     ) { }
 
     async sendOtp(email: string) {
@@ -159,6 +162,54 @@ export class CompanyAuthService {
         };
     }
 
+    async refreshToken(token: string) {
+        try {
+            const payload = await this.jwtService.verifyAsync(token, {
+                secret: process.env.JWT_REFRESH_SECRET,
+            });
+
+            if (!payload) {
+                throw new UnauthorizedException("Invalid refresh token");
+            }
+
+            // 🔥 Check session exists
+            const session = await this.sessionsRepo.findOne({
+                where: { id: payload.sessionId },
+                relations: ["company"],
+            });
+
+            if (!session) {
+                throw new UnauthorizedException("Session not found");
+            }
+
+            // 🔥 Check token matches DB (VERY IMPORTANT)
+            if (session.refreshToken !== token) {
+                throw new UnauthorizedException("Token mismatch (possible theft)");
+            }
+
+            // 🔥 Check expiration
+            if (session.expiresAt < new Date()) {
+                throw new UnauthorizedException("Session expired");
+            }
+
+            // 🔥 Generate new tokens (ROTATION)
+            const tokens = await this.generateTokens(
+                payload.sub,
+                payload.email,
+                payload.sessionId
+            );
+
+            // 🔥 Update refresh token in DB
+            session.refreshToken = tokens.refreshToken;
+            await this.sessionsRepo.save(session);
+
+            return tokens;
+
+        } catch (err) {
+            throw new UnauthorizedException("Invalid or expired refresh token");
+        }
+    }
+
     //  JWT GENERATION
     private async generateTokens(
         userId: string,
@@ -169,20 +220,22 @@ export class CompanyAuthService {
             sub: userId,
             email,
             sessionId,
-            role: "COMPANY"
+            role: "COMPANY",
         };
 
         const accessToken = this.jwtService.sign(payload, {
-            expiresIn: "15m"
+            secret: process.env.JWT_ACCESS_SECRET,
+            expiresIn: "15m",
         });
 
         const refreshToken = this.jwtService.sign(payload, {
-            expiresIn: "7d"
+            secret: process.env.JWT_REFRESH_SECRET,
+            expiresIn: "7d",
         });
 
         return {
             accessToken,
-            refreshToken
+            refreshToken,
         };
     }
 
