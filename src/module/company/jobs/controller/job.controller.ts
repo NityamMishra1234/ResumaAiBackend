@@ -16,7 +16,7 @@ import { CreateJobDto } from "../dto/create-job.dto";
 import { UpdateJobDto } from "../dto/update-job.dto";
 import { jwtAtuhGuard } from "src/module/auth/guards/auth.guard";
 import { CompanyGuard } from "../../auth/guard/company.guard";
-import { User } from "src/module/user/entities/user.entity";
+
 
 @Controller("jobs")
 export class JobController {
@@ -26,6 +26,15 @@ export class JobController {
     @Get()
     getAllJobs(@Query() query: any) {
         return this.jobService.getAllJobs(query);
+    }
+
+    @UseGuards(jwtAtuhGuard)
+    @Get("/explore")
+    getJobsForUser(@Req() req: any, @Query() query: any) {
+        return this.jobService.getJobsExcludingApplied(
+            req.user.userId,
+            query
+        );
     }
 
     // COMPANY - CREATE JOB
