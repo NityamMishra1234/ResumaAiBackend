@@ -13,11 +13,10 @@ async function bootstrap() {
 
   app.enableCors({
     origin: [
-     " https://resuma-ai-enterprise.vercel.app/",
-
+      "https://resuma-ai-enterprise.vercel.app"
     ],
-    Credential: true,
-  })
+    credentials: true,
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
