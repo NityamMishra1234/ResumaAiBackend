@@ -4,7 +4,9 @@ FROM node:20-slim AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+
+# Faster + clean install
+RUN npm ci
 
 COPY . .
 
@@ -16,7 +18,11 @@ FROM node:20-slim
 
 WORKDIR /app
 
-#  Install Chromium + deps
+# 🔥 Prevent puppeteer from downloading Chrome
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV NODE_ENV=production
+
+# 🔥 Install Chromium + required dependencies
 RUN apt-get update && apt-get install -y \
   chromium \
   fonts-liberation \
@@ -51,15 +57,17 @@ RUN apt-get update && apt-get install -y \
   libxrender1 \
   libxss1 \
   libxtst6 \
-  wget \
   ca-certificates \
   --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
+# Tell puppeteer where chromium is
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 COPY package*.json ./
-RUN npm install --omit=dev
+
+# Only production deps
+RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
