@@ -32,7 +32,7 @@ export class InterviewService {
         private gemini: InterviewGeminiService
     ) { }
 
-    // 🚀 START INTERVIEW (GENERATE QUESTIONS ONLY)
+    // START INTERVIEW (GENERATE QUESTIONS ONLY)
     async startInterview(userId: string, jobId: string) {
         const user = await this.userRepo.findOneBy({ id: userId });
         const job = await this.jobRepo.findOneBy({ id: jobId });
@@ -50,7 +50,7 @@ export class InterviewService {
         };
     }
 
-    // 🚀 COMPLETE INTERVIEW (FINAL SUBMIT)
+    //  COMPLETE INTERVIEW (FINAL SUBMIT)
     async completeInterview(body: any) {
         const { userId, jobId, questions, answers, resumeUrl, portfolioUrl } = body;
 
@@ -83,7 +83,7 @@ export class InterviewService {
             answer: answers[i],
         }));
 
-        // 🔥 AI EVALUATION (ONLY 1 CALL)
+        //  AI EVALUATION (ONLY 1 CALL)
         const result = await this.evaluateInterview(conversation, job);
 
         // save application
@@ -189,35 +189,60 @@ export class InterviewService {
     //  GENERATE QUESTIONS (HIGH QUALITY PROMPT)
     private async generateQuestions(job: Job) {
         const prompt = `
-You are a FAANG-level senior interviewer.
+You are a senior FAANG interviewer designing a REALISTIC technical interview.
 
-Your task is to create a HIGH-QUALITY structured interview.
+Your goal is to simulate an actual company interview — not theoretical exams.
 
 Job Role: ${job.title}
 Job Description: ${job.description}
 Required Skills: ${job.skills}
 
-Generate EXACTLY 12 questions.
+Generate EXACTLY 12 interview questions.
 
 Distribution:
 - 3 Easy (fundamentals)
-- 5 Medium (practical + applied)
-- 4 Hard (deep technical / system thinking)
+- 5 Medium (real-world usage, debugging, applied thinking)
+- 4 EASY AND MEDIUM (problem solving, system design, optimization)
 
-Rules:
-- Questions MUST be specific to the job
-- Avoid generic questions
+Question Type Logic (VERY IMPORTANT):
+- Coding questions are OPTIONAL
+- Decide dynamically based on the job role and skills
+
+Guidelines:
+- If role is DSA-heavy / backend / algorithmic → include 3–5 coding questions
+- If role is frontend / product / design / non-algorithmic → include 0–2 coding questions
+- If coding is not relevant → use ONLY "text" questions
+
+Question Type Definitions:
+- "text" → conceptual, debugging, reasoning, architecture, decision-making
+- "coding" → requires writing code / logic / algorithm
+
+Coding Rules (only if included):
+- Must be realistic interview problems (not competitive programming)
+- Solvable in 10–25 minutes
+- Focus on practical use cases
+
+Text Question Rules:
+- Test real understanding, not definitions
+- Include scenario-based and debugging questions
+- Include trade-offs and decision-making
+
+Quality Rules:
+- Questions MUST be specific to the job role
+- Avoid generic or cliché questions
 - Keep each question under 20 words
-- No explanations
-- No numbering in text
+- Make them feel like real interview questions
+- Maintain natural difficulty progression
 
-Return ONLY valid JSON:
+Return ONLY valid JSON in this format:
 
 {
   "questions": [
-    "question 1",
-    "question 2",
-    ...
+    {
+      "question": "string",
+      "type": "text | coding",
+      "difficulty": "easy | medium | hard"
+    }
   ]
 }
 `;
