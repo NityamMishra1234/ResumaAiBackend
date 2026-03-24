@@ -17,7 +17,7 @@ RUN npm install --legacy-peer-deps
 
 COPY . .
 
-RUN npm run build
+RUN node --max-old-space-size=1024 node_modules/.bin/nest build
 
 
 # ---------- PRODUCTION ----------
