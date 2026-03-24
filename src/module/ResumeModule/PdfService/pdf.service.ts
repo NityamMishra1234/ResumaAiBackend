@@ -6,7 +6,7 @@ export class PdfService {
 
   async generatePdf(data: any, template: string): Promise<Buffer> {
 
-    // 🔥 Safety: ensure object
+    //  Safety: ensure object
     const parsedData =
       typeof data === "string" ? JSON.parse(data) : data;
 

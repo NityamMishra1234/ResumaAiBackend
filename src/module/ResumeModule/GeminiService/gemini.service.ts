@@ -17,49 +17,60 @@ export class GeminiService {
   async generateResume(data: any) {
 
     const prompt = `
-You are a world-class ATS resume writer.
+You are an ATS resume generator API.
 
-STRICT RULES:
-- Output ONLY valid JSON
-- No extra text
-- No markdown
-- Use bullet-style, ATS-friendly content
-- Quantify achievements where possible
+CRITICAL RULES (MUST FOLLOW):
+- Return ONLY valid JSON
+- Do NOT include markdown
+- Do NOT include explanations
+- Do NOT include backticks
+- Do NOT include trailing commas
+- Do NOT include undefined/null values
+- Ensure JSON is strictly parsable using JSON.parse()
 
-OUTPUT FORMAT:
+FORMAT (STRICT):
 {
   "summary": "string",
   "experience": [
     {
-      "company": "",
-      "role": "",
-      "duration": "",
-      "points": ["", "", ""]
+      "company": "string",
+      "role": "string",
+      "duration": "string",
+      "points": ["string"]
     }
   ],
   "projects": [
     {
-      "title": "",
-      "description": "",
-      "points": ["", ""],
-      "link": ""
+      "title": "string",
+      "description": "string",
+      "points": ["string"],
+      "link": "string"
     }
   ],
-  "skills": ["", ""],
+  "skills": ["string"],
   "education": [
     {
-      "institution": "",
-      "degree": "",
-      "duration": ""
+      "institution": "string",
+      "degree": "string",
+      "duration": "string"
     }
   ]
 }
+
+CONTENT RULES:
+- Use ATS-friendly keywords
+- Use measurable achievements (numbers, %, impact)
+- Keep bullet points concise (max 20 words)
+- Avoid special characters like <, >, &, *
+- Use plain text only
 
 PROFILE:
 ${JSON.stringify(data.profile)}
 
 JOB DESCRIPTION:
 ${JSON.stringify(data.job)}
+
+RETURN JSON ONLY.
 `;
     const response = await this.ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -68,29 +79,38 @@ ${JSON.stringify(data.job)}
 
     const raw = response.text;
 
-if (!raw) {
-  this.logger.error("Empty response from Gemini");
-  throw new InternalServerErrorException("AI returned empty response");
-}
+    if (!raw) {
+      this.logger.error("Empty response from Gemini");
+      throw new InternalServerErrorException("AI returned empty response");
+    }
 
     this.logger.log("RAW AI RESPONSE:");
     this.logger.log(raw);
 
     try {
-      // 🔥 Clean possible bad formatting
       const cleaned = raw
         .replace(/```json/g, "")
         .replace(/```/g, "")
         .trim();
 
-      return JSON.parse(cleaned);
+      const start = cleaned.indexOf("{");
+      const end = cleaned.lastIndexOf("}");
+
+      if (start === -1 || end === -1) {
+        throw new Error("Invalid JSON boundaries");
+      }
+
+      const safeJson = cleaned.substring(start, end + 1);
+
+      return JSON.parse(safeJson);
 
     } catch (error) {
-      this.logger.error("Failed to parse AI response", error.stack);
+      this.logger.error("❌ PARSE ERROR:");
+      this.logger.error(error.stack);
+      this.logger.error("❌ RAW RESPONSE:");
+      this.logger.error(raw);
 
-      throw new InternalServerErrorException(
-        "AI returned invalid JSON. Please try again."
-      );
+      throw new InternalServerErrorException("AI JSON parsing failed");
     }
   }
 }
