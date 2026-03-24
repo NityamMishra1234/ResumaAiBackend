@@ -54,7 +54,6 @@ export class S3Service {
     }
   }
 
-  // 🔥 THIS WAS MISSING
   private extractKeyFromUrl(url: string): string {
     try {
       const parsedUrl = new URL(url);

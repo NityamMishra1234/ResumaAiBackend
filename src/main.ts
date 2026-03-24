@@ -14,7 +14,11 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       "https://resuma-ai-enterprise.vercel.app",
-      "https://resuma-builder-lime.vercel.app"
+      "https://resuma-builder-lime.vercel.app",
+      "http://localhost:9002",
+      "http://192.168.1.145:9002",
+      "http://localhost:5173/",
+      "http://localhost:5173"
     ],
     credentials: true,
   });

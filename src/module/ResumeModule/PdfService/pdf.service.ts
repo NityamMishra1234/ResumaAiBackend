@@ -13,8 +13,9 @@ export class PdfService {
     const html = this.getTemplate(template, parsedData);
 
     const browser = await puppeteer.launch({
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      headless: true
+      headless: true,
     });
 
     const page = await browser.newPage();
@@ -32,7 +33,7 @@ export class PdfService {
   }
 
   private getTemplate(template: string, data: any) {
-  return `
+    return `
   <html>
     <head>
       <style>
@@ -109,8 +110,8 @@ export class PdfService {
             <div>${e.duration}</div>
             <ul>
               ${(e.points || [])
-                .map((p: any) => `<li>${p}</li>`)
-                .join("")}
+              .map((p: any) => `<li>${p}</li>`)
+              .join("")}
             </ul>
           </div>
         `
@@ -126,8 +127,8 @@ export class PdfService {
             <div>${p.description}</div>
             <ul>
               ${(p.points || [])
-                .map((pt: any) => `<li>${pt}</li>`)
-                .join("")}
+              .map((pt: any) => `<li>${pt}</li>`)
+              .join("")}
             </ul>
           </div>
         `
@@ -150,5 +151,5 @@ export class PdfService {
     </body>
   </html>
   `;
-}
+  }
 }

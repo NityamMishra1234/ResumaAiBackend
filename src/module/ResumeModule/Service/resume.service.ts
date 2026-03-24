@@ -38,13 +38,11 @@ export class ResumaService {
                 linkedin: profile.linkedin,
                 github: profile.github
             };
-            console.log(profile)
-            this.logger.log(aiContent)
             const pdfBuffer = await this.pdfService.generatePdf(
                 finalData,
                 dto.template || "modern"
             );
-            this.logger.log(pdfBuffer)
+            
             const fileName = `resuma/${dto.jobTitle}/${userId}-${Date.now()}.pdf`
 
             const uploadResult = await this.s3Service.uploadFile(
