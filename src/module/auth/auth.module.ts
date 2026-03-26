@@ -10,23 +10,24 @@ import { Session } from "../sessions/entity/sessions.entity";
 
 import { serviceModule } from "src/common/services/services.module";
 import { jwtStrategy } from "./strategy/jwt.strategy";
+import { CommonModule } from "src/common/module/common.module";
 
 @Module({
-    imports : [
+    imports: [
         JwtModule.registerAsync({
-            inject:[ConfigService],
-            useFactory:(config : ConfigService)=>({
+            inject: [ConfigService],
+            useFactory: (config: ConfigService) => ({
                 secret: config.get('JWT_ACCESS_SECRET'),
             })
         }),
-        TypeOrmModule.forFeature([User , Session  ]),
-        serviceModule
-
+        TypeOrmModule.forFeature([User, Session]),
+        serviceModule,
+        CommonModule
     ],
 
-    controllers:[AuthController],
-    providers : [AuthService , jwtStrategy],
-    
+    controllers: [AuthController],
+    providers: [AuthService, jwtStrategy],
+
 })
 
-export class AuthModule {}
+export class AuthModule { }

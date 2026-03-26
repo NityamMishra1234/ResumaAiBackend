@@ -4,13 +4,14 @@ import { Job } from "../jobEntity/job.entity";
 import { CompanyModule } from "../../companies/module/company.module";
 import { JobService } from "../services/job.service";
 import { JobController } from "../controller/job.controller";
+import { GeminiServiceJobs } from "../job.gemini.service/gemini.service";
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Job]),
         CompanyModule,
     ],
-    providers: [JobService],
+    providers: [JobService , GeminiServiceJobs],
     controllers: [JobController],
     exports: [
         TypeOrmModule

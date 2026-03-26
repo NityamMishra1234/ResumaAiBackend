@@ -5,11 +5,13 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
+import { nanoid } from "nanoid";
 
 import { Job } from "../jobEntity/job.entity";
 import { Company } from "../../companies/entity/company.entity";
 import { CreateJobDto } from "../dto/create-job.dto";
 import { UpdateJobDto } from "../dto/update-job.dto";
+import { GeminiServiceJobs } from "../job.gemini.service/gemini.service";
 
 @Injectable()
 export class JobService {
@@ -18,7 +20,9 @@ export class JobService {
         private jobRepo: Repository<Job>,
 
         @InjectRepository(Company)
-        private companyRepo: Repository<Company>
+        private companyRepo: Repository<Company>,
+
+        private geminiService: GeminiServiceJobs
     ) { }
 
     async createJob(companyId: string, dto: CreateJobDto) {
@@ -26,16 +30,34 @@ export class JobService {
 
         if (!company) throw new NotFoundException("Company not found");
 
+        const slug = nanoid(8)
+        const interviewSlug = nanoid(10)
+
+        const baseUrl = "http://localhost:9002";
+        const jobUrl = `${baseUrl}/jobs/${slug}`;
+
+        const interviewLink = `${baseUrl}/interview/${interviewSlug}`;
+        const [fullDescription, linkedinMessage] = await Promise.all([
+            this.geminiService.generateEnhancedJD(dto),
+            this.geminiService.generateLinkedinMessage(dto, company)
+        ]);
         const job = this.jobRepo.create({
             ...dto,
             company,
+            slug,
+            interviewSlug,
+            interviewLink: jobUrl,
+            linkedinMessage,
+            fullDescription
         });
 
         const savedJobs = await this.jobRepo.save(job);
 
-        const { password: _, ...savedUser } = savedJobs.company
-
-        return savedJobs;
+        return {
+            ...savedJobs,
+            jobUrl,
+            interviewLink,
+        };
     }
 
     //  GET ALL JOBS (PUBLIC)
@@ -100,6 +122,17 @@ export class JobService {
         }
 
         return query.orderBy("job.createdAt", "DESC").getMany();
+    }
+
+    async getJobBySlug(slug: string) {
+        const job = await this.jobRepo.findOne({
+            where: { slug },
+            relations: ["company"],
+        });
+
+        if (!job) throw new NotFoundException("Job not found");
+
+        return job;
     }
 
     //  GET COMPANY JOBS

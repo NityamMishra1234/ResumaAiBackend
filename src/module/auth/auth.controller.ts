@@ -18,12 +18,12 @@ export class AuthController {
     }
 
     @Post('send-otp')
-    async sendOtp(@Body() body: any){
+    async sendOtp(@Body() body: any) {
         return this.authService.sendRegisterOtp(body.email)
     }
 
     @Post('veriy-email')
-    async verifyEmail(@Body() body : verifyOtpDto){
+    async verifyEmail(@Body() body: verifyOtpDto) {
         return this.authService.verifyRegisteredOtp(body)
     }
     @Post('register')
@@ -38,13 +38,25 @@ export class AuthController {
         return this.authService.registerNewUser(body, ip, userAgent);
     }
     @Post('login')
-    async login (
-        @Body() body:LoginDto,
-        @Req() req:Request
-    ){  console.log("requestFrom postman" , body)
+    async login(
+        @Body() body: LoginDto,
+        @Req() req: Request
+    ) {
+        console.log("requestFrom postman", body)
         const ip = req.ip
         const userAgent = req.headers['user-agent']
-        return this.authService.loginuser(body , ip ,userAgent)
+        return this.authService.loginuser(body, ip, userAgent)
+    }
+
+    @Post("google")
+    async googleAuth(
+        @Body() body: { idToken: string },
+        @Req() req: Request
+    ) {
+        const ip = req.ip;
+        const userAgent = req.headers["user-agent"];
+
+        return this.authService.googleAuth(body.idToken, ip, userAgent);
     }
 
 }

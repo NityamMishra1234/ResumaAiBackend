@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { otpServices } from "src/common/services/otp.service";
@@ -26,7 +26,9 @@ export class AuthService {
         private jwtService: JwtService,
         private config: ConfigService,
         private otpService: otpServices,
-        private emailService: EmailService
+        private emailService: EmailService,
+        @Inject("FIREBASE_ADMIN")
+        private firebaseAdmin: any,
     ) { }
 
     async sendRegisterOtp(email: string) {
@@ -98,7 +100,7 @@ export class AuthService {
         })
 
         if (!findUser) throw new BadRequestException("User dont exists! please register")
-     
+
 
         const passwordVerify = await bcrypt.compare(dto.password, findUser.password)
 
@@ -174,6 +176,51 @@ export class AuthService {
     }
     async logoutUser(sessionId: string) {
         await this.sessionRepo.delete(sessionId)
+    }
+
+    async googleAuth(idToken: string, ip: any, userAgent: any) {
+
+        const decoded = await this.firebaseAdmin.auth().verifyIdToken(idToken);
+
+        const email = decoded.email;
+        const name = decoded.name;
+
+        if (!email) throw new BadRequestException("Email not found from Google");
+
+        let user = await this.userRepo.findOne({
+            where: { email }
+        });
+
+        if (!user) {
+            user = this.userRepo.create({
+                email,
+                name: name || "User",
+                password: null as any,
+            });
+
+            user = await this.userRepo.save(user);
+        }
+
+        const session = this.sessionRepo.create({
+            user,
+            ip,
+            userAgent,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        });
+
+        const savedSession = await this.sessionRepo.save(session);
+
+        const token = await this.generateTokens(user.id, user.email, savedSession.id);
+
+        savedSession.refreshToken = token.refreshToken;
+        await this.sessionRepo.save(savedSession);
+
+        const { password: _, ...safeUser } = user;
+
+        return {
+            token,
+            user: safeUser
+        };
     }
     async generateTokens(userId: string, email: String, sessionId: string) {
         const payload = {

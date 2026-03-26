@@ -37,6 +37,12 @@ export class JobController {
         );
     }
 
+
+    @Get("/public/:slug")
+    getJobBySlug(@Param("slug") slug: string) {
+        return this.jobService.getJobBySlug(slug);
+    }
+
     // COMPANY - CREATE JOB
     @UseGuards(jwtAtuhGuard, CompanyGuard)
     @Post("/create")

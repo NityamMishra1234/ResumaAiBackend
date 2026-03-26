@@ -54,6 +54,21 @@ export class Job {
     @Column("simple-array", { nullable: true })
     skills: string[];
 
+    @Column({ nullable: true })
+    slug: string;
+
+    @Column({ nullable: true })
+    interviewSlug: string;
+
+    @Column({ nullable: true })
+    interviewLink: string;
+
+    @Column("text", { nullable: true })
+    linkedinMessage: string;
+
+    @Column("text", { nullable: true })
+    fullDescription: string;
+
     @CreateDateColumn()
     createdAt: Date;
 
