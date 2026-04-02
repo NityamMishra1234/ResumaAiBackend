@@ -1,31 +1,19 @@
 import { Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { TypeOrmModule } from "@nestjs/typeorm";
+import { MongooseModule } from "@nestjs/mongoose";
 
 @Module({
+
     imports: [
-        TypeOrmModule.forRootAsync({
+        MongooseModule.forRootAsync({
             inject: [ConfigService],
-            useFactory: (config: ConfigService) => {
-                const db = config.get('database');
+            useFactory: (config: ConfigService) => ({
 
-                return {
-                    type: db.type,
-                    host: db.host,
-                    port: db.port,
-                    username: db.username,
-                    password: db.password,
-                    database: db.database,
+                uri: "mongodb://nityamHirewise:hirewise123@ac-ogf4hor-shard-00-00.n19psaf.mongodb.net:27017,ac-ogf4hor-shard-00-01.n19psaf.mongodb.net:27017,ac-ogf4hor-shard-00-02.n19psaf.mongodb.net:27017/?ssl=true&replicaSet=atlas-10931h-shard-0&authSource=admin&appName=Cluster0",
+            }),
 
-                    autoLoadEntities: true,
-
-                    synchronize: db.synchronize,
-
-                    logging: true,
-                }
-            }
-        })
-    ]
+        }),
+    ],
 })
 
-export class databaseModule {};
+export class databaseModule { }

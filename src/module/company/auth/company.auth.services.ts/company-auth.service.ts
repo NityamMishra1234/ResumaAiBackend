@@ -1,40 +1,34 @@
-// company-auth.service.ts
 import {
     Injectable,
     ConflictException,
     UnauthorizedException,
-    BadRequestException
 } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
 import { JwtService } from "@nestjs/jwt";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model } from "mongoose";
 
-import { Company } from "../../companies/entity/company.entity";
+import { Company, CompanyDocument } from "../../companies/entity/company.entity";
 import { CompanySignupDto } from "../dto/company-signup.dto";
 import { CompanyLoginDto } from "../dto/company-login.dto";
 import { otpServices } from "src/common/services/otp.service";
 import { EmailService } from "src/common/services/email.service";
-import { Session } from "src/module/sessions/entity/sessions.entity";
-import { ConfigService } from "@nestjs/config";
+import { Session, SessionDocument } from "src/module/sessions/entity/session.schema";
 
 @Injectable()
 export class CompanyAuthService {
-
     constructor(
-        @InjectRepository(Company)
-        private companyRepo: Repository<Company>,
+        @InjectModel(Company.name)
+        private companyModel: Model<CompanyDocument>,
 
-        @InjectRepository(Session)
-        private sessionsRepo: Repository<Session>,
+        @InjectModel(Session.name)
+        private sessionsModel: Model<SessionDocument>,
         private jwtService: JwtService,
         private otpService: otpServices,
         private emailService: EmailService,
-        private config: ConfigService
     ) { }
 
     async sendOtp(email: string) {
-
         const canSend = await this.otpService.canRequestOtp(email);
 
         if (!canSend) {
@@ -50,7 +44,6 @@ export class CompanyAuthService {
     }
 
     async verifyOtp(email: string, otp: string) {
-
         const isValid = await this.otpService.verifyEmail(email, otp);
 
         if (!isValid) {
@@ -60,7 +53,6 @@ export class CompanyAuthService {
         return { message: "OTP verified successfully" };
     }
 
-
     async signup(dto: CompanySignupDto, ip: string, userAgent: string) {
         const isVerified = await this.otpService.isVerified(dto.email);
 
@@ -68,9 +60,7 @@ export class CompanyAuthService {
             throw new UnauthorizedException("Email not verified");
         }
 
-        const existing = await this.companyRepo.findOne({
-            where: { email: dto.email }
-        });
+        const existing = await this.companyModel.findOne({ email: dto.email });
 
         if (existing) {
             throw new ConflictException("Company already exists");
@@ -78,48 +68,38 @@ export class CompanyAuthService {
 
         const hashedPassword = await bcrypt.hash(dto.password, 12);
 
-        const company = this.companyRepo.create({
+        const company = await this.companyModel.create({
             ...dto,
-            password: hashedPassword
+            password: hashedPassword,
         });
 
-        const savedCompany = await this.companyRepo.save(company);
-
-
-        const session = this.sessionsRepo.create({
-            company: savedCompany,
+        const session = await this.sessionsModel.create({
+            companyId: company._id,
             type: "COMPANY",
             ip,
             userAgent,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
 
-        const savedSession = await this.sessionsRepo.save(session);
-
-
         const token = await this.generateTokens(
-            savedCompany.id,
-            savedCompany.email,
-            savedSession.id
+            company._id.toString(),
+            company.email,
+            session._id.toString()
         );
 
-        savedSession.refreshToken = token.refreshToken;
-        await this.sessionsRepo.save(savedSession);
+        session.refreshToken = token.refreshToken;
+        await session.save();
 
-        const { password, ...result } = savedCompany;
+        const { password, ...result } = company.toObject();
 
         return {
             token,
-            company: result
+            company: result,
         };
     }
 
-    //  LOGIN
     async login(dto: CompanyLoginDto, ip: string, userAgent: string) {
-
-        const company = await this.companyRepo.findOne({
-            where: { email: dto.email }
-        });
+        const company = await this.companyModel.findOne({ email: dto.email });
 
         if (!company) {
             throw new UnauthorizedException("Invalid credentials");
@@ -131,34 +111,28 @@ export class CompanyAuthService {
             throw new UnauthorizedException("Invalid credentials");
         }
 
-
-        const session = this.sessionsRepo.create({
-            company,
+        const session = await this.sessionsModel.create({
+            companyId: company._id,
             type: "COMPANY",
             ip,
             userAgent,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
 
-        const savedSession = await this.sessionsRepo.save(session);
-
-
         const token = await this.generateTokens(
-            company.id,
+            company._id.toString(),
             company.email,
-            savedSession.id
+            session._id.toString()
         );
 
+        session.refreshToken = token.refreshToken;
+        await session.save();
 
-        savedSession.refreshToken = token.refreshToken;
-        await this.sessionsRepo.save(savedSession);
-
-
-        const { password, ...result } = company;
+        const { password, ...result } = company.toObject();
 
         return {
             token,
-            company: result
+            company: result,
         };
     }
 
@@ -172,45 +146,35 @@ export class CompanyAuthService {
                 throw new UnauthorizedException("Invalid refresh token");
             }
 
-            // 🔥 Check session exists
-            const session = await this.sessionsRepo.findOne({
-                where: { id: payload.sessionId },
-                relations: ["company"],
-            });
+            const session = await this.sessionsModel.findById(payload.sessionId);
 
             if (!session) {
                 throw new UnauthorizedException("Session not found");
             }
 
-            // 🔥 Check token matches DB (VERY IMPORTANT)
             if (session.refreshToken !== token) {
                 throw new UnauthorizedException("Token mismatch (possible theft)");
             }
 
-            // 🔥 Check expiration
             if (session.expiresAt < new Date()) {
                 throw new UnauthorizedException("Session expired");
             }
 
-            // 🔥 Generate new tokens (ROTATION)
             const tokens = await this.generateTokens(
                 payload.sub,
                 payload.email,
                 payload.sessionId
             );
 
-            // 🔥 Update refresh token in DB
             session.refreshToken = tokens.refreshToken;
-            await this.sessionsRepo.save(session);
+            await session.save();
 
             return tokens;
-
         } catch (err) {
             throw new UnauthorizedException("Invalid or expired refresh token");
         }
     }
 
-    //  JWT GENERATION
     private async generateTokens(
         userId: string,
         email: string,
@@ -240,10 +204,7 @@ export class CompanyAuthService {
     }
 
     async sendForgotOtp(email: string) {
-
-        const company = await this.companyRepo.findOne({
-            where: { email }
-        });
+        const company = await this.companyModel.findOne({ email });
 
         if (!company) {
             throw new UnauthorizedException("Company not found");
@@ -256,8 +217,8 @@ export class CompanyAuthService {
 
         return { message: "OTP sent for password reset" };
     }
-    async verifyForgotOtp(email: string, otp: string) {
 
+    async verifyForgotOtp(email: string, otp: string) {
         const isValid = await this.otpService.verifySavedForgotPassword(email, otp);
 
         if (!isValid) {
@@ -268,16 +229,13 @@ export class CompanyAuthService {
     }
 
     async resetPassword(email: string, newPassword: string) {
-
         const isVerified = await this.otpService.isVerifiedForPasswordChange(email);
 
         if (!isVerified) {
             throw new UnauthorizedException("OTP not verified");
         }
 
-        const company = await this.companyRepo.findOne({
-            where: { email }
-        });
+        const company = await this.companyModel.findOne({ email });
 
         if (!company) {
             throw new UnauthorizedException("Company not found");
@@ -286,8 +244,7 @@ export class CompanyAuthService {
         const hashedPassword = await bcrypt.hash(newPassword, 10);
 
         company.password = hashedPassword;
-
-        await this.companyRepo.save(company);
+        await company.save();
 
         return { message: "Password updated successfully" };
     }

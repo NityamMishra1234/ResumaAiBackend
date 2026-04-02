@@ -3,13 +3,13 @@ import {
     NotFoundException,
     BadRequestException,
 } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model } from "mongoose";
 
-import { Job } from "../../jobs/jobEntity/job.entity";
-import { User } from "src/module/user/entities/user.entity";
-import { Application } from "../../application/entity/application.entity";
-import { Interview } from "../entity/interview.entity";
+import { Job, JobDocument } from "../../jobs/jobEntity/job.entity";
+import { User, UserDocument } from "src/module/user/entities/user.schema";
+import { Application, ApplicationDocument } from "../../application/entity/application.entity";
+import { Interview, InterviewDocument } from "../entity/interview.entity";
 import { InterviewGeminiService } from "../geminiService/interview-gemini.service";
 import { InterviewStatus } from "src/common/enems/interview-status.enum";
 import { ApplicationStatus } from "src/common/enems/application-status.enum";
@@ -17,25 +17,26 @@ import { ApplicationStatus } from "src/common/enems/application-status.enum";
 @Injectable()
 export class InterviewService {
     constructor(
-        @InjectRepository(Job)
-        private jobRepo: Repository<Job>,
+        @InjectModel(Job.name)
+        private jobModel: Model<JobDocument>,
 
-        @InjectRepository(User)
-        private userRepo: Repository<User>,
+        @InjectModel(User.name)
+        private userModel: Model<UserDocument>,
 
-        @InjectRepository(Application)
-        private applicationRepo: Repository<Application>,
+        @InjectModel(Application.name)
+        private applicationModel: Model<ApplicationDocument>,
 
-        @InjectRepository(Interview)
-        private interviewRepo: Repository<Interview>,
+        @InjectModel(Interview.name)
+        private interviewModel: Model<InterviewDocument>,
 
         private gemini: InterviewGeminiService
     ) { }
 
-    // START INTERVIEW (GENERATE QUESTIONS ONLY)
     async startInterview(userId: string, jobId: string) {
-        const user = await this.userRepo.findOneBy({ id: userId });
-        const job = await this.jobRepo.findOneBy({ id: jobId });
+        const [user, job] = await Promise.all([
+            this.userModel.findById(userId).lean(),
+            this.jobModel.findById(jobId).lean(),
+        ]);
 
         if (!user || !job) {
             throw new NotFoundException("User or Job not found");
@@ -50,7 +51,6 @@ export class InterviewService {
         };
     }
 
-    //  COMPLETE INTERVIEW (FINAL SUBMIT)
     async completeInterview(body: any) {
         const { userId, jobId, questions, answers, resumeUrl, portfolioUrl } = body;
 
@@ -58,48 +58,41 @@ export class InterviewService {
             throw new BadRequestException("Invalid interview data");
         }
 
-        const job = await this.jobRepo.findOneBy({ id: jobId });
-        const user = await this.userRepo.findOneBy({ id: userId });
+        const [job, user] = await Promise.all([
+            this.jobModel.findById(jobId),
+            this.userModel.findById(userId),
+        ]);
 
         if (!job || !user) {
             throw new NotFoundException("User or Job not found");
         }
 
-        // prevent duplicate application
-        const existing = await this.applicationRepo.findOne({
-            where: {
-                user: { id: user.id },
-                job: { id: job.id },
-            },
+        const existing = await this.applicationModel.findOne({
+            userId: user._id,
+            jobId: job._id,
         });
 
         if (existing) {
             throw new BadRequestException("Already applied to this job");
         }
 
-        // build structured conversation
         const conversation = questions.map((q: string, i: number) => ({
             question: q,
             answer: answers[i],
         }));
 
-        //  AI EVALUATION (ONLY 1 CALL)
         const result = await this.evaluateInterview(conversation, job);
 
-        // save application
-        const application = this.applicationRepo.create({
-            user,
-            job,
+        const application = await this.applicationModel.create({
+            userId: user._id,
+            jobId: job._id,
             resumeUrl,
             portfolioUrl,
             score: result.score,
         });
 
-        const savedApp = await this.applicationRepo.save(application);
-
-        // save interview result
-        const interview = this.interviewRepo.create({
-            application: savedApp,
+        const interview = await this.interviewModel.create({
+            applicationId: application._id,
             conversation,
             score: result.score,
             feedback: result.feedback,
@@ -107,7 +100,8 @@ export class InterviewService {
             status: InterviewStatus.COMPLETED,
         });
 
-        await this.interviewRepo.save(interview);
+        application.interviewId = interview._id as any;
+        await application.save();
 
         return {
             message: "Interview completed & application submitted",
@@ -120,17 +114,14 @@ export class InterviewService {
         applicationId: string,
         status: ApplicationStatus
     ) {
-        const application = await this.applicationRepo.findOne({
-            where: { id: applicationId },
-        });
+        const application = await this.applicationModel.findById(applicationId);
 
         if (!application) {
             throw new NotFoundException("Application not found");
         }
 
         application.status = status;
-
-        await this.applicationRepo.save(application);
+        await application.save();
 
         return {
             message: "Status updated successfully",
@@ -139,43 +130,40 @@ export class InterviewService {
     }
 
     async getApplicationDetails(applicationId: string) {
-        const application = await this.applicationRepo.findOne({
-            where: { id: applicationId },
-            relations: [
-                "user",
-                "job",
-                "interview"
-            ],
-        });
+        const application = await this.applicationModel
+            .findById(applicationId)
+            .populate("userId")
+            .populate("jobId")
+            .populate("interviewId")
+            .lean();
 
         if (!application) {
             throw new NotFoundException("Application not found");
         }
 
-        const interview = application.interview;
+        const interview = (application as any).interviewId;
+        const user = (application as any).userId;
+        const job = (application as any).jobId;
 
         return {
             application: {
-                id: application.id,
+                id: application._id,
                 status: application.status,
                 score: application.score,
                 resumeUrl: application.resumeUrl,
                 portfolioUrl: application.portfolioUrl,
                 appliedAt: application.appliedAt,
             },
-
-            user: application.user && {
-                id: application.user.id,
-                name: application.user.name,
-                email: application.user.email,
+            user: user && {
+                id: user._id,
+                name: user.name,
+                email: user.email,
             },
-
-            job: application.job && {
-                id: application.job.id,
-                title: application.job.title,
-                skills: application.job.skills,
+            job: job && {
+                id: job._id,
+                title: job.title,
+                skills: job.skills,
             },
-
             interview: interview && {
                 score: interview.score,
                 feedback: interview.feedback,
@@ -186,12 +174,11 @@ export class InterviewService {
         };
     }
 
-    //  GENERATE QUESTIONS (HIGH QUALITY PROMPT)
     private async generateQuestions(job: Job) {
         const prompt = `
 You are a senior FAANG interviewer designing a REALISTIC technical interview.
 
-Your goal is to simulate an actual company interview — not theoretical exams.
+Your goal is to simulate an actual company interview, not theoretical exams.
 
 Job Role: ${job.title}
 Job Description: ${job.description}
@@ -209,17 +196,17 @@ Question Type Logic (VERY IMPORTANT):
 - Decide dynamically based on the job role and skills
 
 Guidelines:
-- If role is DSA-heavy / backend / algorithmic → include 3–5 coding questions
-- If role is frontend / product / design / non-algorithmic → include 0–2 coding questions
-- If coding is not relevant → use ONLY "text" questions
+- If role is DSA-heavy / backend / algorithmic, include 3-5 coding questions
+- If role is frontend / product / design / non-algorithmic, include 0-2 coding questions
+- If coding is not relevant, use ONLY "text" questions
 
 Question Type Definitions:
-- "text" → conceptual, debugging, reasoning, architecture, decision-making
-- "coding" → requires writing code / logic / algorithm
+- "text" => conceptual, debugging, reasoning, architecture, decision-making
+- "coding" => requires writing code / logic / algorithm
 
 Coding Rules (only if included):
 - Must be realistic interview problems (not competitive programming)
-- Solvable in 10–25 minutes
+- Solvable in 10-25 minutes
 - Focus on practical use cases
 
 Text Question Rules:
@@ -229,7 +216,7 @@ Text Question Rules:
 
 Quality Rules:
 - Questions MUST be specific to the job role
-- Avoid generic or cliché questions
+- Avoid generic or cliche questions
 - Keep each question under 20 words
 - Make them feel like real interview questions
 - Maintain natural difficulty progression
@@ -250,7 +237,6 @@ Return ONLY valid JSON in this format:
         return this.gemini.generateJSON(prompt);
     }
 
-    //  EVALUATION (VERY IMPORTANT PROMPT)
     private async evaluateInterview(conversation: any[], job: Job) {
         const prompt = `
 You are a strict FAANG-level interviewer.

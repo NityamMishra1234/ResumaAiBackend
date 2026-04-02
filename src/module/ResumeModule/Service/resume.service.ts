@@ -1,7 +1,15 @@
-import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Resume } from "../Entity/resume.entity";
-import { Repository } from "typeorm";
+import {
+    BadRequestException,
+    Injectable,
+    InternalServerErrorException,
+    Logger,
+    NotFoundException
+} from "@nestjs/common";
+
+import { InjectModel } from "@nestjs/mongoose";
+import { Model, Types } from "mongoose";
+
+import { Resume , ResumeDocument } from "../Entity/resume.schema";
 import { ProfileService } from "src/module/profile/profile.service";
 import { GeminiService } from "../GeminiService/gemini.service";
 import { PdfService } from "../PdfService/pdf.service";
@@ -13,8 +21,9 @@ export class ResumaService {
     private readonly logger = new Logger(ResumaService.name);
 
     constructor(
-        @InjectRepository(Resume)
-        private resumaRepo: Repository<Resume>,
+        @InjectModel(Resume.name)
+        private resumeModel: Model<ResumeDocument>,
+
         private profileService: ProfileService,
         private geminiService: GeminiService,
         private pdfService: PdfService,
@@ -23,8 +32,9 @@ export class ResumaService {
 
     async generateResume(userId: string, dto: CreateResumeDto) {
         try {
-            const profile = await this.profileService.getMasterProfile(userId)
-            if (!profile) throw new BadRequestException("Profile not found")
+            const profile = await this.profileService.getMasterProfile(userId);
+            if (!profile) throw new BadRequestException("Profile not found");
+
             const aiContent = await this.geminiService.generateResume({
                 profile,
                 job: dto
@@ -38,12 +48,13 @@ export class ResumaService {
                 linkedin: profile.linkedin,
                 github: profile.github
             };
+
             const pdfBuffer = await this.pdfService.generatePdf(
                 finalData,
                 dto.template || "modern"
             );
-            
-            const fileName = `resuma/${dto.jobTitle}/${userId}-${Date.now()}.pdf`
+
+            const fileName = `resuma/${dto.jobTitle}/${userId}-${Date.now()}.pdf`;
 
             const uploadResult = await this.s3Service.uploadFile(
                 fileName,
@@ -51,8 +62,8 @@ export class ResumaService {
                 "application/pdf"
             );
 
-            const resuma = this.resumaRepo.create({
-                user: { id: userId } as any,
+            const resume = await this.resumeModel.create({
+                userId: new Types.ObjectId(userId),
                 jobTitle: dto.jobTitle,
                 companyName: dto.companyName,
                 jobDescription: dto.jobDescription,
@@ -61,82 +72,66 @@ export class ResumaService {
                 aiContent
             });
 
-            await this.resumaRepo.save(resuma)
-
             return {
-                resumaId: resuma.id,
+                resumaId: resume._id,
                 url: uploadResult.url
-            }
+            };
 
         } catch (error) {
             this.logger.error("Resume generation failed", error.stack);
             throw new InternalServerErrorException("Failed to generate resume");
         }
     }
-   async getSavedResuma(userId: string) {
-    try {
-        const resumes = await this.resumaRepo.find({
-            where: {
-                user: { id: userId },
+
+    async getSavedResuma(userId: string) {
+        try {
+            const resumes = await this.resumeModel.find({
+                userId: new Types.ObjectId(userId),
                 isDeleted: false
-            },
-            select: [
-                "id",
-                "jobTitle",
-                "companyName",
-                "template",
-                "resumeUrl",
-                "createdAt"
-            ],
-            order: {
-                createdAt: "DESC"
-            }
-        });
+            })
+                .select("jobTitle companyName template resumeUrl createdAt")
+                .sort({ createdAt: -1 });
 
-        return {
-            count: resumes.length,
-            data: resumes
-        };
+            return {
+                count: resumes.length,
+                data: resumes
+            };
 
-    } catch (error) {
-        this.logger.error("Failed to fetch resumes", error.stack);
-        throw new InternalServerErrorException("Failed to fetch resumes");
-    }
-}   
-
-async getResumeById(userId: string, resumeId: string) {
-    try {
-        const resume = await this.resumaRepo.findOne({
-            where: {
-                id: resumeId,
-                user: { id: userId }
-            }
-        });
-
-        if (!resume) {
-            throw new BadRequestException("Resume not found");
+        } catch (error) {
+            this.logger.error("Failed to fetch resumes", error.stack);
+            throw new InternalServerErrorException("Failed to fetch resumes");
         }
+    }
 
-        return resume;
+    async getResumeById(userId: string, resumeId: string) {
+        try {
+            const resume = await this.resumeModel.findOne({
+                _id: resumeId,
+                userId: new Types.ObjectId(userId)
+            });
 
-    } catch (error) {
-        this.logger.error("Failed to fetch resume", error.stack);
-        throw error;
+            if (!resume) {
+                throw new BadRequestException("Resume not found");
+            }
+
+            return resume;
+
+        } catch (error) {
+            this.logger.error("Failed to fetch resume", error.stack);
+            throw error;
+        }
+    }
+
+    async deleteResume(id: string) {
+        const resume = await this.resumeModel.findById(id);
+
+        if (!resume) throw new NotFoundException();
+
+        resume.isDeleted = true;
+        resume.deletedAt = new Date();
+
+        await resume.save();
+
+        return { message: "Resume deleted (soft)" };
     }
 }
-
-async deleteResume(id: string) {
-  const resume = await this.resumaRepo.findOne({ where: { id } });
-
-  if (!resume) throw new NotFoundException();
-
-  resume.isDeleted = true;
-  resume.deletedAt = new Date();
-
-  await this.resumaRepo.save(resume);
-
-  return { message: "Resume deleted (soft)" };
-}
-    
-}
-

@@ -1,76 +1,85 @@
-    import {
-        Injectable,
-        NotFoundException,
-        ConflictException,
-    } from "@nestjs/common";
-    import { InjectRepository } from "@nestjs/typeorm";
-    import { Repository } from "typeorm";
+import {
+    Injectable,
+    NotFoundException,
+} from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model, Types } from "mongoose";
 
-    import { Application } from "../entity/application.entity";
-    import { Job } from "../../jobs/jobEntity/job.entity";
-    import { User } from "src/module/user/entities/user.entity";
+import { Application, ApplicationDocument } from "../entity/application.entity";
+import { User, UserDocument } from "src/module/user/entities/user.schema";
 
-    @Injectable()
-    export class ApplicationService {
-        constructor(
-            @InjectRepository(Application)
-            private applicationRepo: Repository<Application>,
+@Injectable()
+export class ApplicationService {
+    constructor(
+        @InjectModel(Application.name)
+        private applicationModel: Model<ApplicationDocument>,
 
-            @InjectRepository(Job)
-            private jobRepo: Repository<Job>,
+        @InjectModel(User.name)
+        private userModel: Model<UserDocument>,
+    ) { }
 
-            @InjectRepository(User)
-            private userRepo: Repository<User>,
-        ) { }
+    async getAppliedJobs(userId: string) {
+        await this.ensureUserExists(userId);
 
-        //  APPLY JOB (PRODUCTION READY)
+        const applications = await this.applicationModel
+            .find({ userId: new Types.ObjectId(userId) })
+            .populate({
+                path: "jobId",
+                populate: { path: "companyId" },
+            })
+            .sort({ appliedAt: -1 })
+            .lean();
 
-
-        //  GET USER APPLIED JOBS
-        async getAppliedJobs(userId: string) {
-            const applications = await this.applicationRepo
-                .createQueryBuilder("application")
-                .leftJoinAndSelect("application.job", "job")
-                .leftJoinAndSelect("job.company", "company")
-                .leftJoin("application.user", "user")
-                .where("user.id = :userId", { userId })
-                .orderBy("application.appliedAt", "DESC")
-                .getMany();
-
-            return applications.map((app) => ({
-                applicationId: app.id,
-                status: app.status,
-                appliedAt: app.appliedAt,
-
-                resumeUrl: app.resumeUrl,
-                portfolioUrl: app.portfolioUrl,
-                score: app.score,
-
-                job: {
-                    id: app.job.id,
-                    title: app.job.title,
-                    location: app.job.location,
-                    type: app.job.type,
-                    salaryMin: app.job.salaryMin,
-                    salaryMax: app.job.salaryMax,
-                },
-
-                company: {
-                    id: app.job.company.id,
-                    name: app.job.company.name,
-                },
-            }));
-        }
-
-        //  GET SINGLE APPLICATION
-        async getApplicationById(applicationId: string, userId: string) {
-            const app = await this.applicationRepo.findOne({
-                where: { id: applicationId, user: { id: userId } },
-                relations: ["job", "job.company"],
-            });
-
-            if (!app) throw new NotFoundException("Application not found");
-
-            return app;
-        }
+        return applications.map((app: any) => ({
+            applicationId: app._id,
+            status: app.status,
+            appliedAt: app.appliedAt,
+            resumeUrl: app.resumeUrl,
+            portfolioUrl: app.portfolioUrl,
+            score: app.score,
+            job: app.jobId && {
+                id: app.jobId._id,
+                title: app.jobId.title,
+                location: app.jobId.location,
+                type: app.jobId.type,
+                salaryMin: app.jobId.salaryMin,
+                salaryMax: app.jobId.salaryMax,
+            },
+            company: app.jobId?.companyId && {
+                id: app.jobId.companyId._id,
+                name: app.jobId.companyId.name,
+            },
+        }));
     }
+
+    async getApplicationById(applicationId: string, userId: string) {
+        const app = await this.applicationModel
+            .findOne({
+                _id: applicationId,
+                userId: new Types.ObjectId(userId),
+            })
+            .populate({
+                path: "jobId",
+                populate: { path: "companyId" },
+            })
+            .lean();
+
+        if (!app) throw new NotFoundException("Application not found");
+
+        return {
+            ...app,
+            id: app._id,
+            job: (app as any).jobId,
+        };
+    }
+
+    private async ensureUserExists(userId: string) {
+        const user = await this.userModel.findById(userId).lean();
+
+        if (!user) {
+            throw new NotFoundException("User not found");
+        }
+
+        return user;
+    }
+}

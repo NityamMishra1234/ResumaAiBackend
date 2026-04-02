@@ -1,13 +1,12 @@
 import { Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
+import { MongooseModule } from "@nestjs/mongoose";
+
 import { AuthService } from "./auth.service";
 import { AuthController } from "./auth.controller";
-
-import { TypeOrmModule } from "@nestjs/typeorm";
-import { User } from "../user/entities/user.entity";
-import { Session } from "../sessions/entity/sessions.entity";
-
+import { User, UserSchema } from "../user/entities/user.schema";
+import { Session, SessionSchema } from "../sessions/entity/session.schema";
 import { serviceModule } from "src/common/services/services.module";
 import { jwtStrategy } from "./strategy/jwt.strategy";
 import { CommonModule } from "src/common/module/common.module";
@@ -17,17 +16,17 @@ import { CommonModule } from "src/common/module/common.module";
         JwtModule.registerAsync({
             inject: [ConfigService],
             useFactory: (config: ConfigService) => ({
-                secret: config.get('JWT_ACCESS_SECRET'),
-            })
+                secret: config.get("JWT_ACCESS_SECRET"),
+            }),
         }),
-        TypeOrmModule.forFeature([User, Session]),
+        MongooseModule.forFeature([
+            { name: User.name, schema: UserSchema },
+            { name: Session.name, schema: SessionSchema },
+        ]),
         serviceModule,
-        CommonModule
+        CommonModule,
     ],
-
     controllers: [AuthController],
     providers: [AuthService, jwtStrategy],
-
 })
-
 export class AuthModule { }

@@ -5,10 +5,11 @@ import {
   InternalServerErrorException,
   Logger
 } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
-import { Profile } from "./profile.entity";
-import { User } from "../user/entities/user.entity";
+
+import { InjectModel } from "@nestjs/mongoose";
+import { Model, Types } from "mongoose";
+
+import { Profile, ProfileDocument } from "./profile.schema";
 import { CreateProfileDto } from "src/dto/create-profile.dto";
 
 @Injectable()
@@ -17,52 +18,38 @@ export class ProfileService {
   private readonly logger = new Logger(ProfileService.name);
 
   constructor(
-    @InjectRepository(User)
-    private userRepo : Repository<User>,
-    @InjectRepository(Profile)
-    private  profileRepo: Repository<Profile>,
+    @InjectModel(Profile.name)
+    private profileModel: Model<ProfileDocument>,
   ) { }
 
   async create(user: any, data: CreateProfileDto) {
-  try {
-    const existingProfile = await this.profileRepo.findOne({
-      where: { user: { id: user.id } }
-    });
+    try {
+      const existingProfile = await this.profileModel.findOne({
+        userId: new Types.ObjectId(user.id)
+      });
 
-    if (existingProfile) {
-      throw new ConflictException("Profile already exists for this user");
+      if (existingProfile) {
+        throw new ConflictException("Profile already exists");
+      }
+
+      const profile = await this.profileModel.create({
+        ...data,
+        userId: new Types.ObjectId(user.id)
+      } as any);
+
+      return profile;
+
+    } catch (error) {
+      this.logger.error("Error creating profile", error.stack);
+      if (error instanceof ConflictException) throw error;
+      throw new InternalServerErrorException("Failed to create profile");
     }
-
-    const fullUser = await this.userRepo.findOneBy({ id: user.id });
-    if (!fullUser) throw new InternalServerErrorException("User not found");
-
-    const profile = this.profileRepo.create({
-      ...data,       
-      user: fullUser,
-    });
-
-    return await this.profileRepo.save(profile);
-
-  } catch (error) {
-    this.logger.error("Error creating profile", error.stack);
-    if (error instanceof ConflictException) throw error;
-    throw new InternalServerErrorException("Failed to create profile");
   }
-}
 
   async getMasterProfile(userId: string) {
-
     try {
-
-      const profile = await this.profileRepo.findOne({
-        where: { user: { id: userId } },
-        relations: [
-          "experiences",
-          "education",
-          "projects",
-          "certifications",
-          "skills"
-        ]
+      const profile = await this.profileModel.findOne({
+        userId: new Types.ObjectId(userId)
       });
 
       if (!profile) {
@@ -72,63 +59,35 @@ export class ProfileService {
       return profile;
 
     } catch (error) {
-
-      this.logger.error("Error fetching master profile", error.stack);
-
+      this.logger.error("Error fetching profile", error.stack);
       if (error instanceof NotFoundException) throw error;
-
       throw new InternalServerErrorException("Failed to fetch profile");
     }
   }
 
   async updateProfile(profileId: string, data: any) {
-  try {
+    try {
+      const profile = await this.profileModel.findById(profileId);
 
-    const profile = await this.profileRepo.findOne({
-      where: { id: profileId },
-      relations: [
-        "experiences",
-        "education",
-        "projects",
-        "certifications",
-        "skills"
-      ]
-    });
+      if (!profile) {
+        throw new NotFoundException("Profile not found");
+      }
 
-    if (!profile) {
-      throw new NotFoundException("Profile not found");
+      Object.assign(profile, data);
+
+      await profile.save();
+
+      return this.getProfileById(profileId);
+
+    } catch (error) {
+      this.logger.error("Error updating profile", error.stack);
+      if (error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException("Failed to update profile");
     }
-
-    // 🧠 merge incoming data into existing entity
-    Object.assign(profile, data);
-
-    // ✅ THIS is the magic
-    const updatedProfile = await this.profileRepo.save(profile);
-
-    return this.getProfileById(profileId);
-
-  } catch (error) {
-
-    this.logger.error("Error updating profile", error.stack);
-
-    if (error instanceof NotFoundException) throw error;
-
-    throw new InternalServerErrorException("Failed to update profile");
   }
-}
 
   async getProfileById(profileId: string) {
-
-    const profile = await this.profileRepo.findOne({
-      where: { id: profileId },
-      relations: [
-        "experiences",
-        "education",
-        "projects",
-        "certifications",
-        "skills"
-      ]
-    });
+    const profile = await this.profileModel.findById(profileId);
 
     if (!profile) {
       throw new NotFoundException("Profile not found");
@@ -138,31 +97,23 @@ export class ProfileService {
   }
 
   async deleteProfile(profileId: string) {
-
     try {
-
-      const profile = await this.profileRepo.findOne({
-        where: { id: profileId }
-      });
+      const profile = await this.profileModel.findById(profileId);
 
       if (!profile) {
         throw new NotFoundException("Profile not found");
       }
 
-      await this.profileRepo.delete(profileId);
+      await this.profileModel.findByIdAndDelete(profileId);
 
       return {
         message: "Profile deleted successfully"
       };
 
     } catch (error) {
-
       this.logger.error("Error deleting profile", error.stack);
-
       if (error instanceof NotFoundException) throw error;
-
       throw new InternalServerErrorException("Failed to delete profile");
     }
   }
-
 }

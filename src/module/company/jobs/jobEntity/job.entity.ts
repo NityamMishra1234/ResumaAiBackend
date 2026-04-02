@@ -1,80 +1,58 @@
-import {
-    Entity,
-    PrimaryGeneratedColumn,
-    Column,
-    ManyToOne,
-    OneToMany,
-    CreateDateColumn,
-    UpdateDateColumn,
-    DeleteDateColumn,
-    Index
-} from "typeorm";
-
-import { Company } from "../../companies/entity/company.entity";
-import { Application } from "../../application/entity/application.entity";
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Document, Types } from "mongoose";
 import { JobType } from "src/common/enems/job-type.enum";
 
-@Entity("jobs")
+export type JobDocument = Job & Document;
+
+@Schema({ timestamps: true })
 export class Job {
-
-    @PrimaryGeneratedColumn("uuid")
-    id: string;
-
-    @Index()
-    @Column()
+    @Prop({ required: true, index: true })
     title: string;
 
-    @Column("text")
+    @Prop({ required: true })
     description: string;
 
-    @Column()
+    @Prop({ required: true })
     location: string;
 
-    @Column({
-        type: "enum",
-        enum: JobType
-    })
+    @Prop({ required: true, enum: JobType })
     type: JobType;
 
-    @Column({ nullable: true })
+    @Prop()
     salaryMin: number;
 
-    @Column({ nullable: true })
+    @Prop()
     salaryMax: number;
 
-    @Column({ default: true })
+    @Prop({ default: true })
     isActive: boolean;
 
-    @ManyToOne(() => Company, company => company.jobs, { onDelete: "CASCADE" })
-    company: Company;
+    @Prop({ type: Types.ObjectId, ref: "Company", required: true, index: true })
+    companyId: Types.ObjectId;
 
-    @OneToMany(() => Application, app => app.job)
-    applications: Application[];
+    @Prop({ type: [{ type: Types.ObjectId, ref: "Application" }], default: [] })
+    applications: Types.ObjectId[];
 
-    @Column("simple-array", { nullable: true })
+    @Prop({ type: [String], default: [] })
     skills: string[];
 
-    @Column({ nullable: true })
+    @Prop({ index: true })
     slug: string;
 
-    @Column({ nullable: true })
+    @Prop({ index: true })
     interviewSlug: string;
 
-    @Column({ nullable: true })
+    @Prop()
     interviewLink: string;
 
-    @Column("text", { nullable: true })
+    @Prop()
     linkedinMessage: string;
 
-    @Column("text", { nullable: true })
+    @Prop()
     fullDescription: string;
 
-    @CreateDateColumn()
-    createdAt: Date;
-
-    @UpdateDateColumn()
-    updatedAt: Date;
-
-    @DeleteDateColumn()
-    deletedAt: Date;
+    @Prop({ type: Date, default: null })
+    deletedAt?: Date | null;
 }
+
+export const JobSchema = SchemaFactory.createForClass(Job);

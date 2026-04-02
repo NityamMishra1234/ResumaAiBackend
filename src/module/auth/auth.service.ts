@@ -1,259 +1,258 @@
-import { BadRequestException, Inject, Injectable, } from "@nestjs/common";
+import {
+    BadRequestException,
+    Inject,
+    Injectable,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { otpServices } from "src/common/services/otp.service";
 import { registerDto } from "./dto/register.dto";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Session } from "../sessions/entity/sessions.entity";
-import { User } from "../user/entities/user.entity";
-import { Repository } from "typeorm";
-import * as bcrypt from "bcrypt"
+import * as bcrypt from "bcrypt";
 
 import { LoginDto } from "./dto/loginDto";
 import { EmailService } from "src/common/services/email.service";
 import { verifyOtpDto } from "./dto/verifyotp.dto";
 import { changePasswrodDto } from "./dto/changePassword.dto";
 
+import { InjectModel } from "@nestjs/mongoose";
+import { Model } from "mongoose";
+
+import { AuthProvider, User, UserDocument } from "../user/entities/user.schema";
+import { Session, SessionDocument } from "../sessions/entity/session.schema";
+
 @Injectable()
 export class AuthService {
     constructor(
-        @InjectRepository(User)
-        private userRepo: Repository<User>,
+        @InjectModel(User.name)
+        private userModel: Model<UserDocument>,
 
-        @InjectRepository(Session)
-        private sessionRepo: Repository<Session>,
+        @InjectModel(Session.name)
+        private sessionModel: Model<SessionDocument>,
 
         private jwtService: JwtService,
         private config: ConfigService,
         private otpService: otpServices,
         private emailService: EmailService,
+
         @Inject("FIREBASE_ADMIN")
         private firebaseAdmin: any,
     ) { }
 
     async sendRegisterOtp(email: string) {
-        const otp = await this.otpService.generateOtp()
-        await this.otpService.storeOtp(email, otp)
-        await this.emailService.sendOtp(email, otp)
+        const otp = await this.otpService.generateOtp();
+        await this.otpService.storeOtp(email, otp);
+        await this.emailService.sendOtp(email, otp);
 
-        return {
-            message: `otp sended to ${email}`
-        }
+        return { message: `otp sended to ${email}` };
     }
 
     async verifyRegisteredOtp(dto: verifyOtpDto) {
-        const verify = await this.otpService.verifyEmail(dto.email, dto.otp)
+        const verify = await this.otpService.verifyEmail(dto.email, dto.otp);
 
-        if (!verify) throw new BadRequestException("Invallid or expire otp")
+        if (!verify) throw new BadRequestException("Invalid or expired otp");
 
-        return {
-            message: "Email is verified"
-        }
+        return { message: "Email is verified" };
     }
 
     async registerNewUser(dto: registerDto, ip: any, userAgent: any) {
-        console.log("DTO:", dto);
-        const validateIsVerified = await this.otpService.isVerified(dto.email)
+        const validateIsVerified = await this.otpService.isVerified(dto.email);
 
-        if (!validateIsVerified) throw new BadRequestException("You are not verified yet or you took more then 10 mins to register please try again")
+        if (!validateIsVerified)
+            throw new BadRequestException("Email not verified");
 
-        const userExists = await this.userRepo.findOne({
-            where: { email: dto.email }
-        })
+        const userExists = await this.userModel.findOne({ email: dto.email.toLowerCase() });
 
-        if (userExists) throw new BadRequestException("Already registered, Please login")
+        if (userExists)
+            throw new BadRequestException("Already registered");
 
-        const hashed = await bcrypt.hash(dto.password, 12)
+        const hashed = await bcrypt.hash(dto.password, 12);
 
-        const user = this.userRepo.create({
-            email: dto.email,
+        const user = await this.userModel.create({
+            email: dto.email.toLowerCase(),
             password: hashed,
             name: dto.name,
-        })
+            provider: AuthProvider.LOCAL,
+            isEmailVerified: true,
+        });
 
-        const savedUser = await this.userRepo.save(user)
-        const session = await this.sessionRepo.create({
-            user: savedUser,
-            ip: ip,
-            userAgent: userAgent,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        })
+        const session = await this.sessionModel.create({
+            userId: user._id,
+            ip,
+            userAgent,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        });
 
-        const savedSession = await this.sessionRepo.save(session)
-        const token = await this.generateTokens(savedUser.id, savedUser.email, session.id);
+        const token = await this.generateTokens(
+            user._id.toString(),
+            user.email,
+            session._id.toString()
+        );
 
-        savedSession.refreshToken = token.refreshToken;
+        session.refreshToken = token.refreshToken;
+        await session.save();
 
-        await this.sessionRepo.save(savedSession);
+        const { password, ...result } = user.toObject();
 
-        const { password: _, ...result } = savedUser
-
-        return {
-            token,
-            user: result
-        }
+        return { token, user: result };
     }
 
     async loginuser(dto: LoginDto, ip: any, userAgent: any) {
-        const findUser = await this.userRepo.findOne({
-            where: { email: dto.email }
-        })
+        const findUser = await this.userModel
+            .findOne({ email: dto.email.toLowerCase() })
+            .select("+password");
 
-        if (!findUser) throw new BadRequestException("User dont exists! please register")
+        if (!findUser)
+            throw new BadRequestException("User not found");
 
+        if (findUser.provider === AuthProvider.GOOGLE)
+            throw new BadRequestException("This account uses Google sign-in");
 
-        const passwordVerify = await bcrypt.compare(dto.password, findUser.password)
+        if (!findUser.password)
+            throw new BadRequestException("Password login is not available for this account");
 
-        if (!passwordVerify) return new BadRequestException("Invallid Password")
+        const passwordVerify = await bcrypt.compare(
+            dto.password,
+            findUser.password
+        );
 
-        const session = this.sessionRepo.create({
-            user: findUser,
+        if (!passwordVerify)
+            throw new BadRequestException("Invalid password");
+
+        const session = await this.sessionModel.create({
+            userId: findUser._id,
             ip,
             userAgent,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
 
-        const savedSession = await this.sessionRepo.save(session)
-        const token = await this.generateTokens(findUser.id, findUser.password, session.id)
+        const token = await this.generateTokens(
+            findUser._id.toString(),
+            findUser.email,
+            session._id.toString()
+        );
 
-        savedSession.refreshToken = token.refreshToken
+        session.refreshToken = token.refreshToken;
+        await session.save();
 
-        await this.sessionRepo.save(savedSession)
-
-        const { password: _, ...savedUser } = findUser
+        const { password, ...savedUser } = findUser.toObject();
 
         return {
             token,
-            user: savedUser
-        }
-    }
-
-    async forgotPasswordSendOtp(email: string) {
-        const isUser = await this.userRepo.findOne({
-            where: { email }
-        })
-
-        if (!isUser) throw new BadRequestException("User not found, Please register")
-
-        const otp = await this.otpService.generateOtp()
-
-        await this.otpService.saveOtpForForgotPassword(email, otp)
-
-        return {
-            message: `Email sent to ${email}`
-        }
-
-    }
-
-    async verifyPassword(dto: verifyOtpDto) {
-        const isVerified = this.otpService.verifyEmail(dto.email, dto.otp)
-
-        if (!isVerified) throw new BadRequestException("Invallid Otp")
-
-        return {
-            message: "Otp vrified please change you password"
-        }
-
-    }
-
-    async changePassword(dto: changePasswrodDto) {
-        const isAuthenticated = await this.otpService.isVerifiedForPasswordChange(dto.email)
-
-        if (!isAuthenticated) throw new BadRequestException("Process expires or Failed to change password")
-
-        const user = await this.userRepo.findOne({
-            where: { email: dto.email }
-        })
-
-        if (!user) throw new BadRequestException("Bsdk to yaha tak aaya kais")
-
-        const hased = await bcrypt.hash(dto.password, 12)
-
-        user.password = hased
-
-        await this.userRepo.save(user)
-
-    }
-    async logoutUser(sessionId: string) {
-        await this.sessionRepo.delete(sessionId)
+            user: savedUser,
+        };
     }
 
     async googleAuth(idToken: string, ip: any, userAgent: any) {
-
         const decoded = await this.firebaseAdmin.auth().verifyIdToken(idToken);
 
-        const email = decoded.email;
-        const name = decoded.name;
-
-        if (!email) throw new BadRequestException("Email not found from Google");
-
-        let user = await this.userRepo.findOne({
-            where: { email }
-        });
-
-        if (!user) {
-            user = this.userRepo.create({
-                email,
-                name: name || "User",
-                password: null as any,
-            });
-
-            user = await this.userRepo.save(user);
+        if (!decoded?.email) {
+            throw new BadRequestException("Google account email not found");
         }
 
-        const session = this.sessionRepo.create({
-            user,
+        const normalizedEmail = decoded.email.toLowerCase();
+
+        let user = await this.userModel.findOne({ email: normalizedEmail });
+
+        if (user && user.provider === AuthProvider.LOCAL && !user.providerId) {
+            throw new BadRequestException("This email is already registered with password login");
+        }
+
+        if (!user) {
+            user = await this.userModel.create({
+                email: normalizedEmail,
+                name: decoded.name || normalizedEmail.split("@")[0],
+                password: null,
+                provider: AuthProvider.GOOGLE,
+                providerId: decoded.uid,
+                isEmailVerified: true,
+                lastLoginAt: new Date(),
+            });
+        } else {
+            user.name = decoded.name || user.name;
+            user.provider = AuthProvider.GOOGLE;
+            user.providerId = decoded.uid;
+            user.isEmailVerified = true;
+            user.lastLoginAt = new Date();
+            await user.save();
+        }
+
+        const session = await this.sessionModel.create({
+            userId: user._id,
             ip,
             userAgent,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
 
-        const savedSession = await this.sessionRepo.save(session);
+        const token = await this.generateTokens(
+            user._id.toString(),
+            user.email,
+            session._id.toString()
+        );
 
-        const token = await this.generateTokens(user.id, user.email, savedSession.id);
+        session.refreshToken = token.refreshToken;
+        await session.save();
 
-        savedSession.refreshToken = token.refreshToken;
-        await this.sessionRepo.save(savedSession);
-
-        const { password: _, ...safeUser } = user;
+        const { password, ...savedUser } = user.toObject();
 
         return {
             token,
-            user: safeUser
+            user: savedUser,
         };
     }
-    async generateTokens(userId: string, email: String, sessionId: string) {
+
+    async changePassword(dto: changePasswrodDto) {
+        const isAuthenticated =
+            await this.otpService.isVerifiedForPasswordChange(dto.email);
+
+        if (!isAuthenticated)
+            throw new BadRequestException("Process expired");
+
+        const user = await this.userModel.findOne({ email: dto.email });
+
+        if (!user) throw new BadRequestException("User not found");
+
+        user.password = await bcrypt.hash(dto.password, 12);
+        user.provider = AuthProvider.LOCAL;
+
+        await user.save();
+    }
+
+    async logoutUser(sessionId: string) {
+        await this.sessionModel.findByIdAndDelete(sessionId);
+    }
+
+    async generateTokens(userId: string, email: string, sessionId: string) {
         const payload = {
             sub: userId,
-            email: email,
-            sessionId: sessionId
-        }
+            email,
+            sessionId,
+        };
 
         const accessToken = await this.jwtService.signAsync(payload, {
-            secret: this.config.get('JWT_ACCESS_SECRET'),
-            expiresIn: this.config.get('JWT_ACCESS_EXPIRES')
-        })
+            secret: this.config.get("JWT_ACCESS_SECRET"),
+            expiresIn: this.config.get("JWT_ACCESS_EXPIRES"),
+        });
 
         const refreshToken = await this.jwtService.signAsync(payload, {
-            secret: this.config.get('JWT_REFRESH_SECRET'),
-            expiresIn: this.config.get('JWT_REFRESH_EXPIRES')
-        })
+            secret: this.config.get("JWT_REFRESH_SECRET"),
+            expiresIn: this.config.get("JWT_REFRESH_EXPIRES"),
+        });
 
-        return {
-            accessToken,
-            refreshToken,
-        }
+        return { accessToken, refreshToken };
     }
 
     async refreshToken(token: string) {
         const payload = await this.jwtService.verifyAsync(token, {
-            secret: this.config.get('JWT_REFRESH_SECRET')
-        })
+            secret: this.config.get("JWT_REFRESH_SECRET"),
+        });
 
-        if (!payload) throw new BadRequestException("Invalid token access denied, Login Again")
+        if (!payload)
+            throw new BadRequestException("Invalid token");
 
-        return this.generateTokens(payload.sub, payload.email, payload.sessionId)
+        return this.generateTokens(
+            payload.sub,
+            payload.email,
+            payload.sessionId
+        );
     }
-
-
 }

@@ -1,14 +1,14 @@
 import { Module } from "@nestjs/common";
-import { TypeOrmModule } from "@nestjs/typeorm";
+import { MongooseModule } from "@nestjs/mongoose";
 
-import { Company } from "../entity/company.entity";
-
-
-
+import { Company, CompanySchema } from "../entity/company.entity";
 
 @Module({
-    imports: [TypeOrmModule.forFeature([Company ]),],
-    
-    exports: [TypeOrmModule], 
+    imports: [
+        MongooseModule.forFeature([
+            { name: Company.name, schema: CompanySchema },
+        ]),
+    ],
+    exports: [MongooseModule],
 })
 export class CompanyModule { }

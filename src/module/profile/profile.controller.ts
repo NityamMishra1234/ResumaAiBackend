@@ -27,7 +27,7 @@ export class ProfileController {
   async createProfile(@Req() req, @Body() body) {
 
     const user = req.user;
-
+    console.log("User" , user)
     const profile = await this.profileService.create(user, body);
 
     return {

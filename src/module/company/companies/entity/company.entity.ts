@@ -1,43 +1,35 @@
-// company.entity.ts
-import {
-    Entity,
-    PrimaryGeneratedColumn,
-    Column,
-    CreateDateColumn,
-    OneToMany
-} from "typeorm";
-import { Job } from "../../jobs/jobEntity/job.entity";
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Document, Types } from "mongoose";
 
-@Entity("companies")
+export type CompanyDocument = Company & Document;
+
+@Schema({ timestamps: { createdAt: true, updatedAt: false } })
 export class Company {
-
-    @PrimaryGeneratedColumn("uuid")
-    id: string;
-
-    @Column()
+    @Prop({ required: true })
     name: string;
 
-    @Column({ unique: true })
+    @Prop({ required: true, unique: true, index: true })
     email: string;
 
-    @Column()
+    @Prop({ required: true })
     password: string;
 
-    @Column({ nullable: true })
+    @Prop()
     website: string;
 
-    @Column({ nullable: true })
+    @Prop()
     description: string;
 
-    @Column({ nullable: true })
+    @Prop()
     location: string;
 
-    @Column({ nullable: true })
+    @Prop()
     logo: string;
 
-    @OneToMany(() => Job, job => job.company)
-    jobs: Job[];
+    @Prop({ type: [{ type: Types.ObjectId, ref: "Job" }], default: [] })
+    jobs: Types.ObjectId[];
 
-    @CreateDateColumn()
     createdAt: Date;
 }
+
+export const CompanySchema = SchemaFactory.createForClass(Company);

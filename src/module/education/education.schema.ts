@@ -1,26 +1,29 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document, Types } from "mongoose";
 
-export type ProjectDocument = Project & Document;
+export type EducationDocument = Education & Document;
 
 @Schema({ timestamps: true })
-export class Project {
+export class Education {
 
   // 🔥 Replace relation with ObjectId
   @Prop({ type: Types.ObjectId, ref: "Profile", required: true, index: true })
   profileId: Types.ObjectId;
 
   @Prop({ required: true })
-  title: string;
+  institution: string;
 
   @Prop({ required: true })
-  description: string;
+  degree: string;
 
-  @Prop()
-  githubUrl: string;
+  @Prop({ required: true })
+  field: string;
 
-  @Prop()
-  projectUrl: string;
+  @Prop({ required: true })
+  startDate: string;
+
+  @Prop({ required: true })
+  endDate: string;
 }
 
-export const ProjectSchema = SchemaFactory.createForClass(Project);
+export const EducationSchema = SchemaFactory.createForClass(Education);

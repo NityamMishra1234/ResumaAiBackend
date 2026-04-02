@@ -26,7 +26,6 @@ import { interviewModule } from './module/company/interview/module/interview.mod
       ttl: 600,
       max: 1000
     }),
-
     databaseModule,
     AuthModule,
     ProfileModule,

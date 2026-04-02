@@ -1,44 +1,33 @@
-import {
-    Entity,
-    PrimaryGeneratedColumn,
-    OneToOne,
-    JoinColumn,
-    Column,
-    CreateDateColumn
-} from "typeorm";
-
-import { Application } from "../../application/entity/application.entity";
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Document, Types } from "mongoose";
 import { InterviewStatus } from "src/common/enems/interview-status.enum";
 
-@Entity("interviews")
+export type InterviewDocument = Interview & Document;
+
+@Schema({ timestamps: { createdAt: true, updatedAt: false } })
 export class Interview {
+    @Prop({ type: Types.ObjectId, ref: "Application", required: true, index: true })
+    applicationId: Types.ObjectId;
 
-    @PrimaryGeneratedColumn("uuid")
-    id: string;
-
-    @OneToOne(() => Application, { onDelete: "CASCADE" })
-    @JoinColumn()
-    application: Application;
-
-    @Column({
-        type: "enum",
+    @Prop({
         enum: InterviewStatus,
-        default: InterviewStatus.NOT_STARTED
+        default: InterviewStatus.NOT_STARTED,
     })
     status: InterviewStatus;
 
-    @Column("json", { nullable: true })
-    conversation: any;
+    @Prop({ type: Array, default: [] })
+    conversation: any[];
 
-    @Column({ nullable: true })
+    @Prop()
     score: number;
 
-    @Column("text", { nullable: true })
+    @Prop()
     feedback: string;
 
-    @Column({ nullable: true })
+    @Prop()
     difficulty: string;
 
-    @CreateDateColumn()
     createdAt: Date;
 }
+
+export const InterviewSchema = SchemaFactory.createForClass(Interview);

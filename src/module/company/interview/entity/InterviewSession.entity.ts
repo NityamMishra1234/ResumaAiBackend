@@ -1,33 +1,29 @@
-import { Entity ,PrimaryGeneratedColumn , ManyToOne , Column , CreateDateColumn } from "typeorm";
-import { User } from "src/module/user/entities/user.entity";
-import { Job } from "../../jobs/jobEntity/job.entity";
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Document, Types } from "mongoose";
 
-@Entity("interview_sessions")
+export type InterviewSessionDocument = InterviewSession & Document;
+
+@Schema({ timestamps: { createdAt: true, updatedAt: false } })
 export class InterviewSession {
+    @Prop({ type: Types.ObjectId, ref: "User", required: true, index: true })
+    userId: Types.ObjectId;
 
-    @PrimaryGeneratedColumn("uuid")
-    id: string;
+    @Prop({ type: Types.ObjectId, ref: "Job", required: true, index: true })
+    jobId: Types.ObjectId;
 
-    @ManyToOne(() => User)
-    user: User;
+    @Prop({ default: "in-progress" })
+    status: string;
 
-    @ManyToOne(() => Job)
-    job: Job;
+    @Prop({ type: Array, default: [] })
+    conversation: any[];
 
-    @Column({
-        default: "in-progress"
-    })
-    status: string; // in-progress | completed | expired
-
-    @Column({ type: "json", nullable: true })
-    conversation: any;
-
-    @Column({ nullable: true })
+    @Prop()
     score: number;
 
-    @Column({ nullable: true })
+    @Prop()
     expiresAt: Date;
 
-    @CreateDateColumn()
     createdAt: Date;
 }
+
+export const InterviewSessionSchema = SchemaFactory.createForClass(InterviewSession);

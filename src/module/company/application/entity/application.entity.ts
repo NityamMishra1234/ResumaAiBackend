@@ -1,52 +1,37 @@
-import {
-    Entity,
-    PrimaryGeneratedColumn,
-    ManyToOne,
-    OneToOne,
-    Column,
-    CreateDateColumn,
-    Index
-} from "typeorm";
-
-import { User } from "src/module/user/entities/user.entity";
-import { Job } from "../../jobs/jobEntity/job.entity";
-import { Interview } from "../../interview/entity/interview.entity";
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Document, Types } from "mongoose";
 import { ApplicationStatus } from "src/common/enems/application-status.enum";
 
-@Entity("applications")
-@Index(["user", "job"], { unique: true })
+export type ApplicationDocument = Application & Document;
+
+@Schema({ timestamps: { createdAt: "appliedAt", updatedAt: false } })
 export class Application {
+    @Prop({ type: Types.ObjectId, ref: "User", required: true, index: true })
+    userId: Types.ObjectId;
 
-    @PrimaryGeneratedColumn("uuid")
-    id: string;
+    @Prop({ type: Types.ObjectId, ref: "Job", required: true, index: true })
+    jobId: Types.ObjectId;
 
-    @ManyToOne(() => User, { eager: false, onDelete: "CASCADE" })
-    user: User;
+    @Prop({ type: Types.ObjectId, ref: "Interview", default: null })
+    interviewId: Types.ObjectId | null;
 
-    @ManyToOne(() => Job, job => job.applications, { onDelete: "CASCADE" })
-    job: Job;
-
-    @OneToOne(() => Interview, interview => interview.application)
-    interview: Interview;
-
-    @Column()
+    @Prop({ required: true })
     resumeUrl: string;
 
-    @Column({ nullable: true })
+    @Prop()
     portfolioUrl: string;
 
-    @Column({
-        type: "enum",
+    @Prop({
         enum: ApplicationStatus,
-        default: ApplicationStatus.PENDING
+        default: ApplicationStatus.PENDING,
     })
     status: ApplicationStatus;
 
-    @Column({ nullable: true })
+    @Prop()
     score: number;
 
-
-
-    @CreateDateColumn()
     appliedAt: Date;
 }
+
+export const ApplicationSchema = SchemaFactory.createForClass(Application);
+ApplicationSchema.index({ userId: 1, jobId: 1 }, { unique: true });
